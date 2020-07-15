@@ -4,7 +4,7 @@ import fi.iki.elonen.NanoHTTPD
 import java.io.File
 import java.io.FileInputStream
 
-class HTTPServer(directory : String, apiKey : String) : NanoHTTPD(8080) {
+class HTTPServer(directory: String, apiKey: String) : NanoHTTPD(8080) {
     private var directory = ""
     private var apiKey = ""
 

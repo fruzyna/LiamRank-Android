@@ -15,11 +15,11 @@ import kotlinx.coroutines.invoke
 import kotlinx.coroutines.launch
 import java.io.*
 import java.net.URL
-import java.util.regex.Pattern
 import java.util.zip.ZipInputStream
 
 class MainActivity : AppCompatActivity() {
-    var webview: WebView? = null
+    private lateinit var webview: WebView
+    private lateinit var server: HTTPServer
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -32,11 +32,11 @@ class MainActivity : AppCompatActivity() {
 
         // setup webview
         webview = findViewById(R.id.liamrank_webview)
-        webview!!.settings.apply {
+        webview.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
         }
-        webview?.webViewClient = object : WebViewClient() {
+        webview.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 view.loadUrl(request.url.toString())
                 return false
@@ -52,6 +52,11 @@ class MainActivity : AppCompatActivity() {
 
         // download files
         CoroutineScope(Dispatchers.Main).launch { startServer() }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        server.stop()
     }
 
     private suspend fun getRepo() = Dispatchers.Default {
@@ -138,13 +143,14 @@ class MainActivity : AppCompatActivity() {
         // use hosted version if error
         if (result == "Error") {
             println("Failed to save repo, using hosted version")
-            webview?.loadUrl("https://liamrank.fruzyna.net")
+            webview.loadUrl("https://liamrank.fruzyna.net")
         }
         // start server and open page
         else {
-            val port = HTTPServer(result!!, getString(R.string.API_KEY)).listeningPort
+            server = HTTPServer(result, getString(R.string.API_KEY))
+            val port = server.listeningPort
             println("Running at http://localhost:$port)")
-            webview?.loadUrl("http://localhost:$port/index.html")
+            webview.loadUrl("http://localhost:$port/index.html")
         }
     }
 }
