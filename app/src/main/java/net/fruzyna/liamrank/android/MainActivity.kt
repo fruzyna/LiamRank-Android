@@ -59,6 +59,15 @@ class MainActivity : AppCompatActivity() {
         server.stop()
     }
 
+    override fun onBackPressed() {
+        // go back in webview if back pressed
+        if (webview.copyBackForwardList().currentIndex > 0) {
+            webview.goBack()
+        }
+        else {
+            super.onBackPressed()
+        }
+    }
     private suspend fun getRepo() = Dispatchers.Default {
         val appDir = getExternalFilesDir("")
         val zipURL = URL("https://github.com/mail929/LiamRank/archive/master.zip")
