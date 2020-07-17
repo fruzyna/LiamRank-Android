@@ -1,6 +1,8 @@
 package net.fruzyna.liamrank.android
 
 import android.Manifest
+import android.app.ProgressDialog
+import android.content.Context
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.os.Build
@@ -8,6 +10,7 @@ import android.os.Bundle
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.ProgressBar
 import androidx.appcompat.app.AppCompatActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -19,6 +22,7 @@ import java.util.zip.ZipInputStream
 
 class MainActivity : AppCompatActivity() {
     private lateinit var webview: WebView
+    private lateinit var loading: ProgressDialog
     private lateinit var server: HTTPServer
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -50,13 +54,23 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        loading = ProgressDialog(this)
+        loading.setTitle("Loading Application")
+        loading.setMessage("Starting app...")
+        loading.show()
+
         // download files
         CoroutineScope(Dispatchers.Main).launch { startServer() }
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
-        server.stop()
+        try {
+            server.stop()
+        }
+        catch (e: UninitializedPropertyAccessException) {
+            println("Server not initialized!")
+        }
     }
 
     override fun onBackPressed() {
@@ -68,20 +82,46 @@ class MainActivity : AppCompatActivity() {
             super.onBackPressed()
         }
     }
+
     private suspend fun getRepo() = Dispatchers.Default {
         val appDir = getExternalFilesDir("")
-        val zipURL = URL("https://github.com/mail929/LiamRank/archive/master.zip")
+        val prefs = getPreferences(Context.MODE_PRIVATE)
         var result = ""
+
+        // download releases page
+        loading.setMessage("Querying latest app version...")
+        val relURL = URL("https://github.com/mail929/LiamRank/releases/latest")
+        val relStr = "/mail929/LiamRank/releases/tag/"
+        val relStream = DataInputStream(relURL.openStream())
+        var installed = prefs.getString("RELEASE", "")
+        var latest = ""
+        try {
+            var page = relStream.readUTF()
+            while (page != null) {
+                if (page.contains(relStr)) {
+                    latest = page.substring(page.indexOf(relStr) + relStr.length)
+                    latest = latest.substring(0, latest.indexOf("\""))
+                    break
+                }
+                page = relStream.readUTF()
+            }
+        }
+        catch (e: EOFException) {
+            // will still work if local repo exists
+            println("No release string found!")
+            result = "Error"
+        }
 
         if (appDir == null) {
             result = "Error"
         }
-        // check if already downloades
-        else if (!File(appDir, "LiamRank-master").exists()) {
-            println()
+        // check if already downloaded, or there is an update
+        else if (!File(appDir, "LiamRank-$installed").exists() || (latest.isNotEmpty() && (installed != latest))) {
             println("Fetching repo")
+            loading.setMessage("Fetching release: ${latest}...")
             try {
                 // download zip
+                val zipURL = URL("https://github.com/mail929/LiamRank/archive/${latest}.zip")
                 val dlStream = DataInputStream(zipURL.openStream())
                 val length = zipURL.openConnection().contentLength
                 if (length < 0) {
@@ -136,7 +176,14 @@ class MainActivity : AppCompatActivity() {
         }
         else {
             println("Using local repo")
-            result = File(appDir, "LiamRank-master").path
+            result = File(appDir, "LiamRank-$installed").path
+        }
+
+        // save release name
+        if (latest.isNotEmpty()) {
+            val edit = prefs.edit()
+            edit.putString("RELEASE", latest)
+            edit.commit()
         }
 
         return@Default result
@@ -151,15 +198,19 @@ class MainActivity : AppCompatActivity() {
 
         // use hosted version if error
         if (result == "Error") {
+            loading.setMessage("Loading page...")
             println("Failed to save repo, using hosted version")
             webview.loadUrl("https://liamrank.fruzyna.net")
         }
         // start server and open page
         else {
+            loading.setMessage("Starting server...")
             server = HTTPServer(result, getString(R.string.API_KEY))
             val port = server.listeningPort
             println("Running at http://localhost:$port)")
             webview.loadUrl("http://localhost:$port/index.html")
         }
+
+        loading.dismiss()
     }
 }
