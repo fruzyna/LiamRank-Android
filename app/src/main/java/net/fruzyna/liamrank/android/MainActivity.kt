@@ -7,10 +7,7 @@ import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
-import android.webkit.WebResourceRequest
-import android.webkit.WebView
-import android.webkit.WebViewClient
-import android.widget.ProgressBar
+import android.webkit.*
 import androidx.appcompat.app.AppCompatActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -23,7 +20,7 @@ import java.util.zip.ZipInputStream
 class MainActivity : AppCompatActivity() {
     private lateinit var webview: WebView
     private lateinit var loading: ProgressDialog
-    private lateinit var server: HTTPServer
+    private lateinit var server: POSTServer
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -63,8 +60,22 @@ class MainActivity : AppCompatActivity() {
         CoroutineScope(Dispatchers.Main).launch { startServer() }
     }
 
-    override fun onSaveInstanceState(outState: Bundle) {
-        super.onSaveInstanceState(outState)
+    override fun onResume() {
+        super.onResume()
+
+        // restart server when reopened
+        try {
+            server.start()
+        }
+        catch (e: UninitializedPropertyAccessException) {
+            println("Server not initialized!")
+        }
+    }
+
+    override fun onPause() {
+        super.onPause()
+
+        // pause server before closing app
         try {
             server.stop()
         }
@@ -205,7 +216,7 @@ class MainActivity : AppCompatActivity() {
         // start server and open page
         else {
             loading.setMessage("Starting server...")
-            server = HTTPServer(result, getString(R.string.API_KEY))
+            server = POSTServer(result, getString(R.string.API_KEY))
             val port = server.listeningPort
             println("Running at http://localhost:$port)")
             webview.loadUrl("http://localhost:$port/index.html")
