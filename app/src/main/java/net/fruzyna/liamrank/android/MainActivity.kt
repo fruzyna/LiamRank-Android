@@ -14,6 +14,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.invoke
 import kotlinx.coroutines.launch
 import java.io.*
+import java.net.InetAddress
 import java.net.URL
 import java.util.zip.ZipInputStream
 
@@ -94,40 +95,52 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // check if connected to the internet
+    private fun isConnected(): Boolean {
+        try {
+            return !InetAddress.getByName("github.com").equals("")
+        }
+        catch (e: Exception) {
+            return false
+        }
+    }
+
     private suspend fun getRepo() = Dispatchers.Default {
         val appDir = getExternalFilesDir("")
         val prefs = getPreferences(Context.MODE_PRIVATE)
         var result = ""
 
-        // download releases page
-        loading.setMessage("Querying latest app version...")
-        val relURL = URL("https://github.com/mail929/LiamRank/releases/latest")
-        val relStr = "/mail929/LiamRank/releases/tag/"
-        val relStream = DataInputStream(relURL.openStream())
         var installed = prefs.getString("RELEASE", "")
+        var installedDir = File(appDir, "LiamRank-$installed")
         var latest = ""
-        try {
-            var page = relStream.readUTF()
-            while (page != null) {
-                if (page.contains(relStr)) {
-                    latest = page.substring(page.indexOf(relStr) + relStr.length)
-                    latest = latest.substring(0, latest.indexOf("\""))
-                    break
+        if (isConnected()) {
+            // download releases page
+            loading.setMessage("Querying latest app version...")
+            val relURL = URL("https://github.com/mail929/LiamRank/releases/latest")
+            val relStr = "/mail929/LiamRank/releases/tag/"
+            val relStream = DataInputStream(relURL.openStream())
+            try {
+                var page = relStream.readUTF()
+                while (page != null) {
+                    if (page.contains(relStr)) {
+                        latest = page.substring(page.indexOf(relStr) + relStr.length)
+                        latest = latest.substring(0, latest.indexOf("\""))
+                        break
+                    }
+                    page = relStream.readUTF()
                 }
-                page = relStream.readUTF()
+            } catch (e: EOFException) {
+                // will still work if local repo exists
+                println("No release string found!")
+                result = "Error"
             }
-        }
-        catch (e: EOFException) {
-            // will still work if local repo exists
-            println("No release string found!")
-            result = "Error"
         }
 
         if (appDir == null) {
             result = "Error"
         }
         // check if already downloaded, or there is an update
-        else if (!File(appDir, "LiamRank-$installed").exists() || (latest.isNotEmpty() && (installed != latest))) {
+        else if (isConnected() && (!File(appDir, "LiamRank-$installed").exists() || (latest.isNotEmpty() && (installed != latest)))) {
             println("Fetching repo")
             loading.setMessage("Fetching release: ${latest}...")
             try {
@@ -185,9 +198,12 @@ class MainActivity : AppCompatActivity() {
                 result = "Length"
             }
         }
-        else {
+        else if (installedDir.exists()) {
             println("Using local repo")
-            result = File(appDir, "LiamRank-$installed").path
+            result = installedDir.path
+        }
+        else {
+            result = "Error"
         }
 
         // save release name
@@ -207,19 +223,19 @@ class MainActivity : AppCompatActivity() {
             result = getRepo()
         }
 
-        // use hosted version if error
-        if (result == "Error") {
-            loading.setMessage("Loading page...")
-            println("Failed to save repo, using hosted version")
-            webview.loadUrl("https://liamrank.fruzyna.net")
-        }
         // start server and open page
-        else {
+        if (result != "Error" ) {
             loading.setMessage("Starting server...")
             server = POSTServer(result, getString(R.string.API_KEY))
             val port = server.listeningPort
             println("Running at http://localhost:$port)")
             webview.loadUrl("http://localhost:$port/index.html")
+        }
+        // use hosted version if error
+        else if (isConnected()) {
+            loading.setMessage("Loading page...")
+            println("Failed to save repo, using hosted version")
+            webview.loadUrl("https://liamrank.fruzyna.net")
         }
 
         loading.dismiss()
