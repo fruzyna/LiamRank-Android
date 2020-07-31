@@ -1,27 +1,37 @@
 package net.fruzyna.liamrank.android
 
 import android.Manifest
+import android.app.Activity
 import android.app.ProgressDialog
 import android.content.Context
+import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.webkit.*
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.invoke
 import kotlinx.coroutines.launch
 import java.io.*
+import java.net.BindException
 import java.net.InetAddress
 import java.net.URL
+import java.net.URLDecoder
 import java.util.zip.ZipInputStream
+
 
 class MainActivity : AppCompatActivity() {
     private lateinit var webview: WebView
     private lateinit var loading: ProgressDialog
     private lateinit var server: POSTServer
+
+    private val SAVE_CSV = 1
+
+    private var lastDownload = ""
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -49,15 +59,24 @@ class MainActivity : AppCompatActivity() {
                 request.grant(request.resources)
             }
         }
+        webview.setDownloadListener { url, _, _, _, _ ->
+            // parse download string
+            var mimeType = url.substring(url.indexOf("data:")+5, url.indexOf(";"))
+            var charset = url.substring(url.indexOf("charset=")+8, url.indexOf(","))
+            lastDownload = URLDecoder.decode(url.substring(url.indexOf(",")+1), charset)
+
+            // prompt for save location
+            val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                addCategory(Intent.CATEGORY_OPENABLE)
+                type = mimeType
+                putExtra(Intent.EXTRA_TITLE, "export.csv")
+            }
+            startActivityForResult(intent, SAVE_CSV)
+        }
 
         // request read permissions
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            if (checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
-                requestPermissions(arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE), 0)
-            }
-            if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
-                requestPermissions(arrayOf(Manifest.permission.CAMERA), 0)
-            }
+            requestPermissions(arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.CAMERA), 0)
         }
 
         loading = ProgressDialog(this)
@@ -78,6 +97,9 @@ class MainActivity : AppCompatActivity() {
         }
         catch (e: UninitializedPropertyAccessException) {
             println("Server not initialized!")
+        }
+        catch (e: BindException) {
+            println("Server already initialized")
         }
     }
 
@@ -104,12 +126,37 @@ class MainActivity : AppCompatActivity() {
     }
 
     // check if connected to the internet
-    private fun isConnected(): Boolean {
+    private fun isConnected(host: String = "github.com"): Boolean {
         try {
-            return !InetAddress.getByName("github.com").equals("")
+            return !InetAddress.getByName(host).equals("")
         }
         catch (e: Exception) {
             return false
+        }
+    }
+
+    // receive chosen file location for save
+    override fun onActivityResult(requestCode: Int, resultCode: Int, resultData: Intent?) {
+        super.onActivityResult(requestCode, resultCode, resultData)
+
+        // save to file
+        if (requestCode == SAVE_CSV && resultCode == Activity.RESULT_OK) {
+            try {
+                contentResolver.openFileDescriptor(resultData?.data!!, "w")?.use { it ->
+                    FileOutputStream(it.fileDescriptor).use {
+                        it.write(lastDownload.toByteArray())
+                    }
+                }
+            } catch (e: FileNotFoundException) {
+                Toast.makeText(this, "Error creating file", Toast.LENGTH_SHORT).show()
+                e.printStackTrace()
+            } catch (e: IOException) {
+                Toast.makeText(this, "Error creating file", Toast.LENGTH_SHORT).show()
+                e.printStackTrace()
+            }
+        }
+        else {
+            Toast.makeText(this, "Error creating file", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -240,10 +287,15 @@ class MainActivity : AppCompatActivity() {
             webview.loadUrl("http://localhost:$port/index.html")
         }
         // use hosted version if error
-        else if (isConnected()) {
+        else if (isConnected("wildrank.fruzyna.net")) {
             loading.setMessage("Loading page...")
             println("Failed to save repo, using hosted version")
+            Toast.makeText(this, "Unable to get app, using remote server", Toast.LENGTH_SHORT).show()
             webview.loadUrl("https://liamrank.fruzyna.net")
+        }
+        // no cached app and no internet connection
+        else {
+            Toast.makeText(this, "No internet connection, cannot load app", Toast.LENGTH_SHORT).show()
         }
 
         loading.dismiss()
