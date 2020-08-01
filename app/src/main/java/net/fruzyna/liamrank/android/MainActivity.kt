@@ -6,7 +6,6 @@ import android.app.ProgressDialog
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
-import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.webkit.*
@@ -22,7 +21,6 @@ import java.net.InetAddress
 import java.net.URL
 import java.net.URLDecoder
 import java.util.zip.ZipInputStream
-
 
 class MainActivity : AppCompatActivity() {
     private lateinit var webview: WebView
@@ -61,8 +59,8 @@ class MainActivity : AppCompatActivity() {
         }
         webview.setDownloadListener { url, _, _, _, _ ->
             // parse download string
-            var mimeType = url.substring(url.indexOf("data:")+5, url.indexOf(";"))
-            var charset = url.substring(url.indexOf("charset=")+8, url.indexOf(","))
+            val mimeType = url.substring(url.indexOf("data:")+5, url.indexOf(";"))
+            val charset = url.substring(url.indexOf("charset=")+8, url.indexOf(","))
             lastDownload = URLDecoder.decode(url.substring(url.indexOf(",")+1), charset)
 
             // prompt for save location
@@ -165,8 +163,8 @@ class MainActivity : AppCompatActivity() {
         val prefs = getPreferences(Context.MODE_PRIVATE)
         var result = ""
 
-        var installed = prefs.getString("RELEASE", "")
-        var installedDir = File(appDir, "LiamRank-$installed")
+        val installed = prefs.getString("RELEASE", "")
+        val installedDir = File(appDir, "LiamRank-$installed")
         var latest = ""
         if (isConnected()) {
             // download releases page
@@ -265,7 +263,7 @@ class MainActivity : AppCompatActivity() {
         if (latest.isNotEmpty()) {
             val edit = prefs.edit()
             edit.putString("RELEASE", latest)
-            edit.commit()
+            edit.apply()
         }
 
         return@Default result
@@ -278,24 +276,24 @@ class MainActivity : AppCompatActivity() {
             result = getRepo()
         }
 
-        // start server and open page
-        if (result != "Error" ) {
-            loading.setMessage("Starting server...")
-            server = POSTServer(result, getString(R.string.API_KEY))
-            val port = server.listeningPort
-            println("Running at http://localhost:$port)")
-            webview.loadUrl("http://localhost:$port/index.html")
-        }
-        // use hosted version if error
-        else if (isConnected("wildrank.fruzyna.net")) {
-            loading.setMessage("Loading page...")
-            println("Failed to save repo, using hosted version")
-            Toast.makeText(this, "Unable to get app, using remote server", Toast.LENGTH_SHORT).show()
-            webview.loadUrl("https://liamrank.fruzyna.net")
-        }
-        // no cached app and no internet connection
-        else {
-            Toast.makeText(this, "No internet connection, cannot load app", Toast.LENGTH_SHORT).show()
+        when {
+            // start server and open page
+            result != "Error" -> {
+                loading.setMessage("Starting server...")
+                server = POSTServer(result, getString(R.string.API_KEY))
+                val port = server.listeningPort
+                println("Running at http://localhost:$port)")
+                webview.loadUrl("http://localhost:$port/index.html")
+            }
+            // use hosted version if error
+            isConnected("wildrank.fruzyna.net") -> {
+                loading.setMessage("Loading page...")
+                println("Failed to save repo, using hosted version")
+                Toast.makeText(this, "Unable to get app, using remote server", Toast.LENGTH_SHORT).show()
+                webview.loadUrl("https://liamrank.fruzyna.net")
+            }
+            // no cached app and no internet connection
+            else -> Toast.makeText(this, "No internet connection, cannot load app", Toast.LENGTH_SHORT).show()
         }
 
         loading.dismiss()

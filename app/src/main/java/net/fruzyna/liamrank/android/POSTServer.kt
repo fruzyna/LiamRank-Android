@@ -9,6 +9,21 @@ class POSTServer(directory: String, apiKey: String) : NanoHTTPD(8080) {
     private var directory = ""
     private var apiKey = ""
 
+    private val ABOUT_PAGE = "" +
+            "<!DOCTYPE html>" +
+            "<html lang=\"en\">" +
+            "   <head>" +
+            "       <meta charset=\"utf-8\"/>" +
+            "       <title>LiamRank Android</title>" +
+            "   </head>" +
+            "   <body>" +
+            "       <h1>Liam Rank</h1>" +
+            "       POSTServer.kt Kotlin POST server<br>" +
+            "       2020 Liam Fruzyna<br>" +
+            "       <a href=\"https://github.com/mail929/LiamRank-Android\">MPL Licensed on GitHub</a>" +
+            "   </body>" +
+            "</html>"
+
     init {
         this.directory = directory
         this.apiKey = apiKey
@@ -65,57 +80,41 @@ class POSTServer(directory: String, apiKey: String) : NanoHTTPD(8080) {
             return newFixedLengthResponse(Response.Status.BAD_REQUEST, "text/plain", "No data attached")
         }
 
-        var uploads = uploadDir.listFiles()
-        if (request == "/getPitResultNames") {
-            uploads = uploadDir.listFiles { file ->
-                file.exists() && file.name.startsWith("pit-") && file.name.endsWith(".json")
-            }
-        }
-        else if (request == "/getImageNames") {
-            uploads = uploadDir.listFiles { file ->
-                file.exists() && file.name.startsWith("image-") && file.name.endsWith(".png")
-            }
-        }
-        else if (request == "/getMatchResultNames") {
-            uploads = uploadDir.listFiles { file ->
-                file.exists() && file.name.startsWith("match-") && file.name.endsWith(".json")
-            }
-        }
-        else if (request == "/getNoteNames") {
-            uploads = uploadDir.listFiles { file ->
-                file.exists() && file.name.startsWith("note-") && file.name.endsWith(".json")
-            }
-        }
-        else if (request == "/about") {
-            return newFixedLengthResponse(Response.Status.OK, "text/html", "<!DOCTYPE html><html lang=\"en\"><html><head><meta charset=\"utf-8\"/><title>LiamRank Android</title></head><body><h1>Liam Rank</h1>POSTServer.kt Kotlin POST server<br>2020 Liam Fruzyna<br><a href=\"https://github.com/mail929/LiamRank-Android\">MPL Licensed on GitHub</a></body></html>")
-        }
-        else {
-            // determine mime type
-            val file = File(directory, request)
-            var mime = when (file.extension) {
-                "html" -> "text/html"
-                "css" -> "text/css"
-                "js" -> "text/javascript"
-                "json" -> "text/plain"
-                "ico" -> "image/x-icon"
-                "png" -> "image/png"
-                "svg" -> "image/svg+xml"
-                else -> return newFixedLengthResponse(Response.Status.FORBIDDEN, "text/plain", "File not allowed")
-            }
+        var uploads: List<String>
+        when (request) {
+            "/getPitResultNames" -> uploads = uploadDir.list().filter { name -> name.startsWith("pit-") && name.endsWith(".json") }
+            "/getImageNames" -> uploads = uploadDir.list().filter { name -> name.startsWith("image-") && name.endsWith(".png") }
+            "/getMatchResultNames" -> uploads = uploadDir.list().filter { name -> name.startsWith("match-") && name.endsWith(".json") }
+            "/getNoteNames" -> uploads = uploadDir.list().filter { name -> name.startsWith("note-") && name.endsWith(".json") }
+            "/about" -> return newFixedLengthResponse(Response.Status.OK, "text/html", ABOUT_PAGE)
+            else -> {
+                // determine mime type
+                val file = File(directory, request)
+                val mime = when (file.extension) {
+                    "html" -> "text/html"
+                    "css" -> "text/css"
+                    "js" -> "text/javascript"
+                    "json" -> "text/plain"
+                    "ico" -> "image/x-icon"
+                    "png" -> "image/png"
+                    "svg" -> "image/svg+xml"
+                    else -> return newFixedLengthResponse(Response.Status.FORBIDDEN, "text/plain", "File not allowed")
+                }
 
-            // return API key (not contained in repo)
-            return if (request == "/scripts/keys.js") {
-                println("Returning API key")
-                newFixedLengthResponse(Response.Status.OK, mime, "API_KEY=\"$apiKey\"")
-            }
-            // return file if it exists
-            else if (file.exists()) {
-                newChunkedResponse(Response.Status.OK, mime, FileInputStream(file))
-            }
-            // return 404
-            else {
-                println("$request does not exist")
-                newFixedLengthResponse(Response.Status.NOT_FOUND, "text/plain", "File not found")
+                // return API key (not contained in repo)
+                return when {
+                    request == "/scripts/keys.js" -> {
+                        println("Returning API key")
+                        newFixedLengthResponse(Response.Status.OK, mime, "API_KEY=\"$apiKey\"")
+                    }
+                    // return file if it exists
+                    file.exists() -> newChunkedResponse(Response.Status.OK, mime, FileInputStream(file))
+                    // return 404
+                    else -> {
+                        println("$request does not exist")
+                        newFixedLengthResponse(Response.Status.NOT_FOUND, "text/plain", "File not found")
+                    }
+                }
             }
         }
 
