@@ -169,7 +169,9 @@ class MainActivity : AppCompatActivity() {
         var latest = ""
         if (isConnected()) {
             // download releases page
-            loading.setMessage("Querying latest app version...")
+            runOnUiThread {
+                loading.setMessage("Querying latest app version...")
+            }
             val relURL = URL("https://github.com/mail929/LiamRank/releases/latest")
             val relStr = "/mail929/LiamRank/releases/tag/"
             val relStream = DataInputStream(relURL.openStream())
@@ -196,7 +198,9 @@ class MainActivity : AppCompatActivity() {
         // check if already downloaded, or there is an update
         else if (isConnected() && (!File(appDir, "LiamRank-$installed").exists() || (latest.isNotEmpty() && (installed != latest)))) {
             println("Fetching repo")
-            loading.setMessage("Fetching release: ${latest}...")
+            runOnUiThread {
+                loading.setMessage("Fetching release: ${latest}...")
+            }
             try {
                 // download zip
                 val zipURL = URL("https://github.com/mail929/LiamRank/archive/${latest}.zip")
