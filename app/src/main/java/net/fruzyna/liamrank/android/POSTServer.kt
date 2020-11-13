@@ -89,6 +89,7 @@ class POSTServer(directory: String, apiKey: String) : NanoHTTPD(8080) {
             "/about" -> return newFixedLengthResponse(Response.Status.OK, "text/html", ABOUT_PAGE)
             else -> {
                 // determine mime type
+                request = request.replace("/config/", "/assets/")
                 val file = File(directory, request)
                 val mime = when (file.extension) {
                     "html" -> "text/html"
