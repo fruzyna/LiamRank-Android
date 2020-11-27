@@ -81,11 +81,13 @@ class POSTServer(directory: String, apiKey: String) : NanoHTTPD(8080) {
         }
 
         var uploads: List<String>
+        var start = "image-"
+        var ext = ".json"
         when (request) {
-            "/getPitResultNames" -> uploads = uploadDir.list().filter { name -> name.startsWith("pit-") && name.endsWith(".json") }
-            "/getImageNames" -> uploads = uploadDir.list().filter { name -> name.startsWith("image-") && name.endsWith(".png") }
-            "/getMatchResultNames" -> uploads = uploadDir.list().filter { name -> name.startsWith("match-") && name.endsWith(".json") }
-            "/getNoteNames" -> uploads = uploadDir.list().filter { name -> name.startsWith("note-") && name.endsWith(".json") }
+            "/getPitResultNames" -> start = "pit-"
+            "/getImageNames" -> ext = ".png"
+            "/getMatchResultNames" -> start = "match-"
+            "/getNoteNames" -> start = "note-"
             "/about" -> return newFixedLengthResponse(Response.Status.OK, "text/html", ABOUT_PAGE)
             else -> {
                 // determine mime type
@@ -119,6 +121,7 @@ class POSTServer(directory: String, apiKey: String) : NanoHTTPD(8080) {
             }
         }
 
+        uploads = uploadDir.list().filter { name -> name.startsWith(start) && name.endsWith(ext) }
         return newFixedLengthResponse(Response.Status.OK, "text/plain", uploads.joinToString(","))
     }
 }
