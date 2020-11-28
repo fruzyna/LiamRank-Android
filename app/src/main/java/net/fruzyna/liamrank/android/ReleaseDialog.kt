@@ -1,6 +1,7 @@
 package net.fruzyna.liamrank.android
 
 import android.app.Dialog
+import android.content.DialogInterface
 import android.os.Bundle
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.DialogFragment
@@ -44,13 +45,17 @@ class ReleaseDialog : DialogFragment() {
                         0 -> lastUsed
                         1 -> "latest"
                         2 -> "master"
-                        else -> releases[which-3].substring(8)
+                        else -> releases[which - 3].substring(8)
                     }
 
                     // launch app
-                    CoroutineScope(Dispatchers.Main).launch { (activity as MainActivity).init(release) }
+                    CoroutineScope(Dispatchers.Main).launch { mainActivity.init(release) }
                 }
             builder.create()
         } ?: throw IllegalStateException("Activity cannot be null")
+    }
+
+    override fun onDismiss(dialog: DialogInterface) {
+        CoroutineScope(Dispatchers.Main).launch { (activity as MainActivity).init("latest") }
     }
 }
