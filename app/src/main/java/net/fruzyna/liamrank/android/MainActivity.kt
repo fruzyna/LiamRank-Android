@@ -207,7 +207,7 @@ class MainActivity : AppCompatActivity() {
                     var latest = page.substring(page.indexOf(relStr) + relStr.length)
                     latest = latest.substring(0, latest.indexOf("\""))
                     useRelease(latest)
-                    break
+                    return
                 }
                 page = relStream.readUTF()
             }
@@ -326,7 +326,7 @@ class MainActivity : AppCompatActivity() {
         newestDate = 0
 
         // lays out contents of documents folder
-        val files = appDir?.listFiles()
+        val files = appDir.listFiles()
         if (files != null) {
             for (file in files) {
                 val name = file.nameWithoutExtension
@@ -366,7 +366,7 @@ class MainActivity : AppCompatActivity() {
 
         // construct the server for the release
         server = POSTServer(
-            File(appDir, "LiamRank-${release}").path,
+            File(appDir, "LiamRank-$release").path,
             getString(R.string.API_KEY)
         )
 
