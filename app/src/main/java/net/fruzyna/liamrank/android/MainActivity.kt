@@ -16,11 +16,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.invoke
 import kotlinx.coroutines.launch
 import java.io.*
-import java.net.BindException
-import java.net.InetAddress
-import java.net.URL
-import java.net.URLDecoder
+import java.net.*
 import java.util.zip.ZipInputStream
+
 
 class MainActivity : AppCompatActivity() {
     private lateinit var webview: WebView
@@ -30,6 +28,9 @@ class MainActivity : AppCompatActivity() {
     private val SAVE_CSV = 1
 
     private var lastDownload = ""
+
+    private lateinit var appDir: File
+    private val RELEASE_KEY = "LAST_USED_RELEASE"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -60,9 +61,9 @@ class MainActivity : AppCompatActivity() {
         }
         webview.setDownloadListener { url, _, _, _, _ ->
             // parse download string
-            val mimeType = url.substring(url.indexOf("data:")+5, url.indexOf(";"))
-            val charset = url.substring(url.indexOf("charset=")+8, url.indexOf(","))
-            lastDownload = URLDecoder.decode(url.substring(url.indexOf(",")+1), charset)
+            val mimeType = url.substring(url.indexOf("data:") + 5, url.indexOf(";"))
+            val charset = url.substring(url.indexOf("charset=") + 8, url.indexOf(","))
+            lastDownload = URLDecoder.decode(url.substring(url.indexOf(",") + 1), charset)
 
             // prompt for save location
             val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
@@ -75,7 +76,12 @@ class MainActivity : AppCompatActivity() {
 
         // request read permissions
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            requestPermissions(arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.CAMERA), 0)
+            requestPermissions(
+                arrayOf(
+                    Manifest.permission.READ_EXTERNAL_STORAGE,
+                    Manifest.permission.CAMERA
+                ), 0
+            )
         }
 
         loading = ProgressDialog(this)
@@ -84,7 +90,10 @@ class MainActivity : AppCompatActivity() {
         loading.show()
 
         // download files
-        CoroutineScope(Dispatchers.Main).launch { startServer() }
+        appDir = getExternalFilesDir("")!!
+        if (appDir != null) {
+            CoroutineScope(Dispatchers.Main).launch { init() }
+        }
     }
 
     override fun onResume() {
@@ -159,148 +168,212 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private suspend fun getRepo() = Dispatchers.Default {
-        val appDir = getExternalFilesDir("")
-        val prefs = getPreferences(Context.MODE_PRIVATE)
-        var result = ""
-
-        val installed = prefs.getString("RELEASE", "")
-        val installedDir = File(appDir, "LiamRank-$installed")
-        var latest = ""
-        if (isConnected()) {
-            // download releases page
-            runOnUiThread {
-                loading.setMessage("Querying latest app version...")
-            }
-            val relURL = URL("https://github.com/mail929/LiamRank/releases/latest")
-            val relStr = "/mail929/LiamRank/releases/tag/"
-            val relStream = DataInputStream(relURL.openStream())
-            try {
-                var page = relStream.readUTF()
-                while (page != null) {
-                    if (page.contains(relStr)) {
-                        latest = page.substring(page.indexOf(relStr) + relStr.length)
-                        latest = latest.substring(0, latest.indexOf("\""))
-                        break
-                    }
-                    page = relStream.readUTF()
-                }
-            } catch (e: EOFException) {
-                // will still work if local repo exists
-                println("No release string found!")
-                result = "Error"
-            }
-        }
-
-        if (appDir == null) {
-            result = "Error"
-        }
-        // check if already downloaded, or there is an update
-        else if (isConnected() && (!File(appDir, "LiamRank-$installed").exists() || (latest.isNotEmpty() && (installed != latest)))) {
-            println("Fetching repo")
-            runOnUiThread {
-                loading.setMessage("Fetching release: ${latest}...")
-            }
-            try {
-                // download zip
-                val zipURL = URL("https://github.com/mail929/LiamRank/archive/${latest}.zip")
-                val dlStream = DataInputStream(zipURL.openStream())
-                val length = zipURL.openConnection().contentLength
-                if (length < 0) {
-                    throw Exception()
-                }
-                val dlBuffer = ByteArray(length)
-                dlStream.readFully(dlBuffer)
-                dlStream.close()
-
-                // extract zip
-                println("Extracting repo")
-                val zipStream = ZipInputStream(ByteArrayInputStream(dlBuffer))
-                var entry = zipStream.nextEntry
-                while (entry != null) {
-                    val filePath = File(appDir, entry.name)
-                    if (result == "") {
-                        result = filePath.path
-                    }
-
-                    // create new directories
-                    if (entry.isDirectory) {
-                        filePath.mkdirs()
-                    }
-                    // write files
-                    else {
-                        val fileStream = FileOutputStream(filePath)
-                        val zipBuffer = ByteArray(1024)
-                        var byteCount = 0
-                        while (zipStream.read(zipBuffer).also { byteCount = it } != -1) {
-                            fileStream.write(zipBuffer, 0, byteCount)
-                        }
-                        fileStream.close()
-                    }
-
-                    zipStream.closeEntry()
-                    entry = zipStream.nextEntry
-                }
-                zipStream.close()
-            }
-            catch (e: FileNotFoundException) {
-                println("File not found!")
-                result = "Error"
-            }
-            catch (e: IOException) {
-                println("IO exception!")
-                result = "Error"
-            }
-            catch (e: Exception) {
-                println("0 length!")
-                result = "Length"
-            }
-        }
-        else if (installedDir.exists()) {
-            println("Using local repo")
-            result = installedDir.path
-        }
-        else {
-            result = "Error"
-        }
-
-        // save release name
-        if (latest.isNotEmpty()) {
-            val edit = prefs.edit()
-            edit.putString("RELEASE", latest)
-            edit.apply()
-        }
-
-        return@Default result
+    // find the last recorded release
+    private fun getLastRelease(): String {
+        return getPreferences(Context.MODE_PRIVATE).getString("RELEASE", "master").toString()
     }
 
-    private suspend fun startServer() {
-        // attempt to get files
-        var result = "Length"
-        while (result == "Length") {
-            result = getRepo()
+    // determined if a given release is already downloaded
+    private fun isReleaseCached(release: String): Boolean {
+        val file = File(appDir, "LiamRank-$release")
+        return file.exists()
+    }
+
+    // on startup
+    private suspend fun init() = Dispatchers.Default {
+        // TODO: user input on whether to use latest release
+        val useLatest = true
+        if (useLatest) {
+            runOnUiThread {
+                loading.setMessage("Determining latest release...")
+            }
+            val latestURL = URL("https://github.com/mail929/LiamRank/releases/latest")
+            fetchLatest(latestURL)
+        }
+        else {
+            // TODO: user input for release as option
+            useRelease("")
+        }
+    }
+
+    // determines the latest available release and runs server
+    private fun fetchLatest(relURL: URL) {
+        val relStr = "/mail929/LiamRank/releases/tag/"
+        val relStream = DataInputStream(relURL.openStream())
+        try {
+            var page = relStream.readUTF()
+            while (page != null) {
+                if (page.contains(relStr)) {
+                    var latest = page.substring(page.indexOf(relStr) + relStr.length)
+                    latest = latest.substring(0, latest.indexOf("\""))
+                    useRelease(latest)
+                    break
+                }
+                page = relStream.readUTF()
+            }
+        } catch (e: EOFException) {
+            // will still work if local repo exists
+            println("No release string found!")
+        }
+        useRelease("")
+    }
+
+    // attempt to use a given or the last used release
+    private fun useRelease(release: String) {
+        var release = release
+
+        // if no release was given
+        if (release.isBlank()) {
+            // use the last used release
+            release = getLastRelease()
         }
 
-        when {
-            // start server and open page
-            result != "Error" -> {
-                loading.setMessage("Starting server...")
-                server = POSTServer(result, getString(R.string.API_KEY))
-                val port = server.listeningPort
-                println("Running at http://localhost:$port)")
-                webview.loadUrl("http://localhost:$port/index.html")
-            }
-            // use hosted version if error
-            isConnected("wildrank.fruzyna.net") -> {
-                loading.setMessage("Loading page...")
-                println("Failed to save repo, using hosted version")
-                Toast.makeText(this, "Unable to get app, using remote server", Toast.LENGTH_SHORT).show()
-                webview.loadUrl("https://liamrank.fruzyna.net")
-            }
-            // no cached app and no internet connection
-            else -> Toast.makeText(this, "No internet connection, cannot load app", Toast.LENGTH_SHORT).show()
+        // if the desired release does not exist
+        if (!isReleaseCached(release)) {
+            // download it
+            fetchRelease(release)
+        }
+        else {
+            // otherwise, start app with release
+            startRelease(release)
+        }
+    }
+
+    // fetch a given release from GitHub
+    private fun fetchRelease(release: String) {
+        runOnUiThread {
+            loading.setMessage("Downloading release $release...")
         }
 
-        loading.dismiss()
+        val zipURL = URL("https://github.com/mail929/LiamRank/archive/${release}.zip")
+        val dlStream = DataInputStream(zipURL.openStream())
+        val length = zipURL.openConnection().contentLength
+        if (length > 0) {
+            val dlBuffer = ByteArray(length)
+            dlStream.readFully(dlBuffer)
+            dlStream.close()
+            extractArchive(dlBuffer, release)
+        }
+        else {
+            findReleaseLocal()
+        }
+    }
+
+    // attempts to extract the archive and start the app, uses local on failure
+    private fun extractArchive(buffer: ByteArray, release: String) {
+        runOnUiThread {
+            loading.setMessage("Extracting release $release...")
+        }
+
+        val zipStream = ZipInputStream(ByteArrayInputStream(buffer))
+        var entry = zipStream.nextEntry
+        while (entry != null) {
+            val filePath = File(appDir, entry.name)
+
+            // create new directories
+            if (entry.isDirectory) {
+                filePath.mkdirs()
+            }
+            // write files
+            else {
+                val fileStream = FileOutputStream(filePath)
+                val zipBuffer = ByteArray(1024)
+                var byteCount: Int
+                while (zipStream.read(zipBuffer).also { byteCount = it } != -1) {
+                    fileStream.write(zipBuffer, 0, byteCount)
+                }
+                fileStream.close()
+            }
+
+            zipStream.closeEntry()
+            entry = zipStream.nextEntry
+        }
+        zipStream.close()
+        startRelease(release)
+    }
+
+    // find a release to use locally
+    private fun findReleaseLocal() {
+        // choose the last release
+        var release = getLastRelease()
+
+        // if the last release does not exist
+        if (!isReleaseCached(release)) {
+            print("[LOCAL] Searching for any existing releases")
+            // try and find the newest release
+            release = searchForRelease()
+        }
+
+        // if a release is found
+        if (release.isBlank()) {
+            // start
+            startRelease(release)
+        }
+        else {
+            // otherwise TODO: fail
+            print("[LOCAL] Failed to find any existing releases")
+        }
+    }
+
+    // attempts to find the latest local release
+    private fun searchForRelease(): String {
+        runOnUiThread {
+            loading.setMessage("Searching for available releases...")
+        }
+
+        var newestName = ""
+        var newestDate: Long
+        newestDate = 0
+
+        // lays out contents of documents folder
+        val files = appDir?.listFiles()
+        if (files != null) {
+            for (file in files) {
+                val name = file.nameWithoutExtension
+                if (name.startsWith("LiamRank-")) {
+                    val date = file.lastModified()
+                    print("[LOCAL] Found $name from $date")
+                    // determines if the directory is newer
+                    if (date > newestDate) {
+                        newestName = name
+                        newestDate = date
+                    }
+                }
+            }
+
+            if (newestName.contains("-")) {
+                return newestName.split("-")[1]
+            }
+        }
+        else {
+            print("[LOCAL] Unable to get contents of documents directory")
+        }
+        return ""
+    }
+
+    // start the webserver and webview with a given release
+    private fun startRelease(release: String) {
+        print("[SERVER] Starting server for release $release")
+        runOnUiThread {
+            loading.setMessage("Starting server...")
+        }
+
+        // save the name of the release
+        getPreferences(Context.MODE_PRIVATE).edit().also {
+            it.putString(RELEASE_KEY, release)
+            it.apply()
+        }
+
+        // construct the server for the release
+        server = POSTServer(
+            File(appDir, "LiamRank-${release}").path,
+            getString(R.string.API_KEY)
+        )
+
+        // load the main page
+        runOnUiThread {
+            webview.loadUrl("http://localhost:${server.listeningPort}/index.html")
+            loading.dismiss()
+        }
     }
 }
