@@ -36,26 +36,35 @@ class ReleaseDialog : DialogFragment() {
                 }
             }
 
+            releases.add("Manual Release")
+
             // build dialog
             val builder = AlertDialog.Builder(it)
-            builder.setTitle("Choose Release")
+            builder.setTitle("Choose a Release")
                 .setItems(releases.toTypedArray()) { _, which ->
                     // choose release name
                     var release = when (which)  {
                         0 -> lastUsed
                         1 -> "latest"
                         2 -> "master"
+                        releases.size - 1 -> "manual"
                         else -> releases[which - 3].substring(8)
                     }
 
-                    // launch app
-                    CoroutineScope(Dispatchers.Main).launch { mainActivity.init(release) }
+                    if (release != "manual") {
+                        // launch app
+                        CoroutineScope(Dispatchers.Main).launch { mainActivity.init(release) }
+                    }
+                    else {
+                        ManualReleaseDialog().show(mainActivity.supportFragmentManager, "dialog")
+                    }
                 }
             builder.create()
         } ?: throw IllegalStateException("Activity cannot be null")
     }
 
-    override fun onDismiss(dialog: DialogInterface) {
+    // use latest if clicked off
+    override fun onCancel(dialog: DialogInterface) {
         CoroutineScope(Dispatchers.Main).launch { (activity as MainActivity).init("latest") }
     }
 }
