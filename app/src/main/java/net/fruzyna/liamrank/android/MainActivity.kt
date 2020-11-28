@@ -19,7 +19,6 @@ import java.io.*
 import java.net.*
 import java.util.zip.ZipInputStream
 
-
 class MainActivity : AppCompatActivity() {
     private lateinit var webview: WebView
     private lateinit var loading: ProgressDialog
@@ -89,10 +88,13 @@ class MainActivity : AppCompatActivity() {
         loading.setMessage("Starting app...")
         loading.show()
 
-        // download files
         appDir = getExternalFilesDir("")!!
-        if (appDir != null) {
-            CoroutineScope(Dispatchers.Main).launch { init() }
+        val allowSelection = true
+        if (allowSelection) {
+            ReleaseDialog().show(supportFragmentManager, "dialog")
+        }
+        else {
+            CoroutineScope(Dispatchers.Main).launch { init("latest") }
         }
     }
 
@@ -169,7 +171,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     // find the last recorded release
-    private fun getLastRelease(): String {
+    fun getLastRelease(): String {
         return getPreferences(Context.MODE_PRIVATE).getString("RELEASE", "master").toString()
     }
 
@@ -180,10 +182,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     // on startup
-    private suspend fun init() = Dispatchers.Default {
-        // TODO: user input on whether to use latest release
-        val useLatest = true
-        if (useLatest) {
+    suspend fun init(release: String) = Dispatchers.Default {
+        if (release == "latest") {
             runOnUiThread {
                 loading.setMessage("Determining latest release...")
             }
@@ -191,8 +191,7 @@ class MainActivity : AppCompatActivity() {
             fetchLatest(latestURL)
         }
         else {
-            // TODO: user input for release as option
-            useRelease("")
+            useRelease(release)
         }
     }
 
