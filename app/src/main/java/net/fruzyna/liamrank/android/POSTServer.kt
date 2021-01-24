@@ -6,7 +6,7 @@ import java.io.*
 import kotlin.collections.HashMap
 
 class POSTServer(directory: String, apiKey: String) : NanoHTTPD(8080) {
-    private var directory = ""
+    public var directory = ""
     private var apiKey = ""
 
     private val ABOUT_PAGE = "" +

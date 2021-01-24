@@ -8,16 +8,25 @@ import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.os.Build
 import android.os.Bundle
+import android.view.Menu
+import android.view.MenuInflater
+import android.view.MenuItem
 import android.webkit.*
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.FileProvider.getUriForFile
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.invoke
 import kotlinx.coroutines.launch
 import java.io.*
-import java.net.*
+import java.net.BindException
+import java.net.InetAddress
+import java.net.URL
+import java.net.URLDecoder
+import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
+import java.util.zip.ZipOutputStream
 
 class MainActivity : AppCompatActivity() {
     private lateinit var webview: WebView
@@ -378,6 +387,10 @@ class MainActivity : AppCompatActivity() {
             it.apply()
         }
 
+        // stop the server before re-initializing
+        if (this::server.isInitialized) {
+            server.stop()
+        }
         // construct the server for the release
         server = POSTServer(
             File(appDir, "LiamRank-$release").path,
@@ -388,6 +401,72 @@ class MainActivity : AppCompatActivity() {
         runOnUiThread {
             webview.loadUrl("http://localhost:${server.listeningPort}/index.html")
             loading.dismiss()
+        }
+    }
+
+    override fun onCreateOptionsMenu(menu: Menu): Boolean {
+        val inflater: MenuInflater = menuInflater
+        inflater.inflate(R.menu.menu, menu)
+        return true
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem) = when (item.itemId) {
+        R.id.action_release -> {
+            ReleaseDialog().show(supportFragmentManager, "dialog")
+            true
+        }
+
+        R.id.action_uploads -> {
+            // create publically accessible directory
+            val exports = File(filesDir, "exports")
+            exports.mkdirs()
+
+            // build zip
+            val zip = File(exports, "LiamRank-Uploads.zip")
+            zip(File(server.directory, "uploads"), zip.path)
+
+            // send zip uri in intent
+            val uri = getUriForFile(this, "net.fruzyna.liamrank.android", zip)
+            if (zip.exists()) {
+                val intent = Intent().apply {
+                    action = Intent.ACTION_SEND
+                    putExtra(Intent.EXTRA_STREAM, uri)
+                    type = "application/zip"
+                    flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
+                }
+                startActivity(Intent.createChooser(intent, "Share File"))
+            }
+            true
+        }
+
+        else -> {
+            // If we got here, the user's action was not recognized.
+            // Invoke the superclass to handle it.
+            super.onOptionsItemSelected(item)
+        }
+    }
+
+    private fun zip(dir: File, zipName: String?) {
+        try {
+            var origin: BufferedInputStream
+            val dest = FileOutputStream(zipName)
+            val out = ZipOutputStream(BufferedOutputStream(dest))
+            val data = ByteArray(1024)
+
+            dir.listFiles().forEach { file ->
+                val fi = FileInputStream(file)
+                origin = BufferedInputStream(fi)
+                val entry = ZipEntry(file.name)
+                out.putNextEntry(entry)
+                var count: Int
+                while (origin.read(data, 0, 1024).also { count = it } != -1) {
+                    out.write(data, 0, count)
+                }
+                origin.close()
+            }
+            out.close()
+        } catch (e: java.lang.Exception) {
+            e.printStackTrace()
         }
     }
 }

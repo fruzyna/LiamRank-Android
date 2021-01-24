@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">LiamRank</string>
+    <string name="action_release">Change Release</string>
+    <string name="action_uploads">Export Uploads</string>
 </resources>
