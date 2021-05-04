@@ -10,6 +10,7 @@ import android.os.Build
 import android.os.Bundle
 import android.webkit.*
 import android.widget.Toast
+import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -17,6 +18,7 @@ import kotlinx.coroutines.invoke
 import kotlinx.coroutines.launch
 import java.io.*
 import java.net.*
+import java.util.*
 import java.util.zip.ZipInputStream
 
 class MainActivity : AppCompatActivity() {
@@ -26,11 +28,13 @@ class MainActivity : AppCompatActivity() {
 
     private val SAVE_CSV = 1
 
-    private var lastDownload = ""
+    private var lastDownloadStr = ""
+    private var lastDownloadBytes = ByteArray(0)
 
     private lateinit var appDir: File
     private val RELEASE_KEY = "LAST_USED_RELEASE"
 
+    @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -61,14 +65,36 @@ class MainActivity : AppCompatActivity() {
         webview.setDownloadListener { url, _, _, _, _ ->
             // parse download string
             val mimeType = url.substring(url.indexOf("data:") + 5, url.indexOf(";"))
-            val charset = url.substring(url.indexOf("charset=") + 8, url.indexOf(","))
-            lastDownload = URLDecoder.decode(url.substring(url.indexOf(",") + 1), charset)
+            val count = if (url.contains("charset")) 9 else 1
+            val charset = url.substring(url.indexOf(";") + count, url.indexOf(","))
+            if (charset == "base64") {
+                lastDownloadBytes = Base64.getDecoder().decode(url.substring(url.indexOf(",") + 1))
+                lastDownloadStr = ""
+            }
+            else {
+                lastDownloadStr = URLDecoder.decode(url.substring(url.indexOf(",") + 1), charset)
+                lastDownloadBytes = ByteArray(0)
+            }
+
 
             // prompt for save location
-            val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
-                addCategory(Intent.CATEGORY_OPENABLE)
-                type = mimeType
-                putExtra(Intent.EXTRA_TITLE, "export.csv")
+            val intent: Intent
+            if (mimeType == "text/csv") {
+                intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                    addCategory(Intent.CATEGORY_OPENABLE)
+                    type = mimeType
+                    putExtra(Intent.EXTRA_TITLE, "export." + mimeType.split('/')[1])
+                }
+            }
+            else if (mimeType == "application/zip") {
+                intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                    addCategory(Intent.CATEGORY_OPENABLE)
+                    type = mimeType
+                    putExtra(Intent.EXTRA_TITLE, "export." + mimeType.split('/')[1])
+                }
+            }
+            else {
+                return@setDownloadListener
             }
             startActivityForResult(intent, SAVE_CSV)
         }
@@ -154,7 +180,12 @@ class MainActivity : AppCompatActivity() {
             try {
                 contentResolver.openFileDescriptor(resultData?.data!!, "w")?.use { it ->
                     FileOutputStream(it.fileDescriptor).use {
-                        it.write(lastDownload.toByteArray())
+                        if (lastDownloadStr.isNotEmpty()) {
+                            it.write(lastDownloadStr.toByteArray())
+                        }
+                        else if (lastDownloadBytes.isNotEmpty()) {
+                            it.write(lastDownloadBytes)
+                        }
                     }
                 }
             } catch (e: FileNotFoundException) {
