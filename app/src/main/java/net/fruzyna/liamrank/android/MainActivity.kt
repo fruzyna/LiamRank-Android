@@ -6,9 +6,11 @@ import android.app.ProgressDialog
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.webkit.*
+import android.webkit.WebView
 import android.widget.Toast
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
@@ -17,17 +19,23 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.invoke
 import kotlinx.coroutines.launch
 import java.io.*
-import java.net.*
+import java.net.BindException
+import java.net.InetAddress
+import java.net.URL
+import java.net.URLDecoder
 import java.util.*
 import java.util.zip.ZipInputStream
+
 
 class MainActivity : AppCompatActivity() {
     private lateinit var webview: WebView
     private lateinit var loading: ProgressDialog
     private lateinit var server: POSTServer
 
-    private val SAVE_CSV = 1
+    private val SAVE_FILE = 1
+    private val UPLOAD_FILE = 2
 
+    private lateinit var uploadMessage: ValueCallback<Array<Uri>>
     private var lastDownloadStr = ""
     private var lastDownloadBytes = ByteArray(0)
 
@@ -61,6 +69,15 @@ class MainActivity : AppCompatActivity() {
             override fun onPermissionRequest(request: PermissionRequest) {
                 request.grant(request.resources)
             }
+            override fun onShowFileChooser(webView: WebView?, filePathCallback: ValueCallback<Array<Uri>>, fileChooserParams: FileChooserParams?): Boolean {
+                uploadMessage = filePathCallback
+                val i = Intent(Intent.ACTION_GET_CONTENT).apply {
+                    addCategory(Intent.CATEGORY_OPENABLE)
+                    type = "application/zip"
+                }
+                startActivityForResult(Intent.createChooser(i, "File Chooser"), UPLOAD_FILE)
+                return true
+            }
         }
         webview.setDownloadListener { url, _, _, _, _ ->
             // parse download string
@@ -79,24 +96,26 @@ class MainActivity : AppCompatActivity() {
 
             // prompt for save location
             val intent: Intent
-            if (mimeType == "text/csv") {
-                intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
-                    addCategory(Intent.CATEGORY_OPENABLE)
-                    type = mimeType
-                    putExtra(Intent.EXTRA_TITLE, "export." + mimeType.split('/')[1])
+            when (mimeType) {
+                "text/csv" -> {
+                    intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                        addCategory(Intent.CATEGORY_OPENABLE)
+                        type = mimeType
+                        putExtra(Intent.EXTRA_TITLE, "export." + mimeType.split('/')[1])
+                    }
+                }
+                "application/zip" -> {
+                    intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                        addCategory(Intent.CATEGORY_OPENABLE)
+                        type = mimeType
+                        putExtra(Intent.EXTRA_TITLE, "export." + mimeType.split('/')[1])
+                    }
+                }
+                else -> {
+                    return@setDownloadListener
                 }
             }
-            else if (mimeType == "application/zip") {
-                intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
-                    addCategory(Intent.CATEGORY_OPENABLE)
-                    type = mimeType
-                    putExtra(Intent.EXTRA_TITLE, "export." + mimeType.split('/')[1])
-                }
-            }
-            else {
-                return@setDownloadListener
-            }
-            startActivityForResult(intent, SAVE_CSV)
+            startActivityForResult(intent, SAVE_FILE)
         }
 
         // request read permissions
@@ -176,7 +195,7 @@ class MainActivity : AppCompatActivity() {
         super.onActivityResult(requestCode, resultCode, resultData)
 
         // save to file
-        if (requestCode == SAVE_CSV && resultCode == Activity.RESULT_OK) {
+        if (requestCode == SAVE_FILE && resultCode == Activity.RESULT_OK) {
             try {
                 contentResolver.openFileDescriptor(resultData?.data!!, "w")?.use { it ->
                     FileOutputStream(it.fileDescriptor).use {
@@ -194,6 +213,24 @@ class MainActivity : AppCompatActivity() {
             } catch (e: IOException) {
                 Toast.makeText(this, "Error creating file", Toast.LENGTH_SHORT).show()
                 e.printStackTrace()
+            }
+        }
+        else if (requestCode == UPLOAD_FILE && resultCode == Activity.RESULT_OK) {
+            if (resultData != null) {
+                val dataString = resultData.dataString
+                val clipData = resultData.clipData
+                if (clipData != null) {
+                    val results: Array<Uri> = Array(clipData.itemCount) { Uri.EMPTY }
+                    for (i in 0 until clipData.itemCount) {
+                        val item = clipData.getItemAt(i)
+                        results[i] = item.uri
+                    }
+                    uploadMessage.onReceiveValue(results)
+                }
+                if (dataString != null) {
+                    val results = arrayOf(Uri.parse(dataString))
+                    uploadMessage.onReceiveValue(results)
+                }
             }
         }
         else {
