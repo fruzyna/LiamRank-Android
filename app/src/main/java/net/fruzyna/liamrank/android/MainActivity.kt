@@ -215,23 +215,23 @@ class MainActivity : AppCompatActivity() {
                 e.printStackTrace()
             }
         }
-        else if (requestCode == UPLOAD_FILE && resultCode == Activity.RESULT_OK) {
-            if (resultData != null) {
+        else if (requestCode == UPLOAD_FILE) {
+            var results: Array<Uri>? = null
+            if (resultCode == Activity.RESULT_OK && resultData != null) {
                 val dataString = resultData.dataString
                 val clipData = resultData.clipData
                 if (clipData != null) {
-                    val results: Array<Uri> = Array(clipData.itemCount) { Uri.EMPTY }
+                    results = Array(clipData.itemCount) { Uri.EMPTY }
                     for (i in 0 until clipData.itemCount) {
                         val item = clipData.getItemAt(i)
                         results[i] = item.uri
                     }
-                    uploadMessage.onReceiveValue(results)
                 }
-                if (dataString != null) {
-                    val results = arrayOf(Uri.parse(dataString))
-                    uploadMessage.onReceiveValue(results)
+                else if (dataString != null) {
+                    results = arrayOf(Uri.parse(dataString))
                 }
             }
+            uploadMessage.onReceiveValue(results)
         }
         else {
             Toast.makeText(this, "Error creating file", Toast.LENGTH_SHORT).show()
