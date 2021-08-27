@@ -1,4 +1,4 @@
-package net.fruzyna.liamrank.android
+package org.wildstang.wildrank.android
 
 import android.Manifest
 import android.app.Activity
@@ -53,7 +53,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         // setup webview
-        webview = findViewById(R.id.liamrank_webview)
+        webview = findViewById(R.id.wildrank_webview)
         webview.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
@@ -245,7 +245,7 @@ class MainActivity : AppCompatActivity() {
 
     // determined if a given release is already downloaded
     private fun isReleaseCached(release: String): Boolean {
-        val file = File(appDir, "LiamRank-$release")
+        val file = File(appDir, "WildRank-$release")
         return file.isDirectory
     }
 
@@ -256,7 +256,7 @@ class MainActivity : AppCompatActivity() {
             runOnUiThread {
                 loading.setMessage("Determining latest release...")
             }
-            val latestURL = URL("https://github.com/mail929/LiamRank/releases/latest")
+            val latestURL = URL("https://github.com/WildStang/WildRank/releases/latest")
             fetchLatest(latestURL)
         }
         else {
@@ -267,7 +267,7 @@ class MainActivity : AppCompatActivity() {
     // determines the latest available release and runs server
     private fun fetchLatest(relURL: URL) {
         println("[FETCH] Determining latest release")
-        val relStr = "/mail929/LiamRank/releases/tag/"
+        val relStr = "/WildStang/WildRank/releases/tag/"
         val relStream = DataInputStream(relURL.openStream())
         try {
             var page = relStream.readUTF()
@@ -316,7 +316,7 @@ class MainActivity : AppCompatActivity() {
         }
         println("[FETCH] Fetching release $release")
 
-        val zipURL = URL("https://github.com/mail929/LiamRank/archive/${release}.zip")
+        val zipURL = URL("https://github.com/WildStang/WildRank/archive/${release}.zip")
         try {
             var attempts = 0
             while (attempts < 2) {
@@ -411,7 +411,7 @@ class MainActivity : AppCompatActivity() {
         if (files != null) {
             for (file in files) {
                 val name = file.nameWithoutExtension
-                if (name.startsWith("LiamRank-")) {
+                if (name.startsWith("WildRank-")) {
                     val date = file.lastModified()
                     println("[LOCAL] Found $name from $date")
                     // determines if the directory is newer
@@ -448,7 +448,7 @@ class MainActivity : AppCompatActivity() {
 
         // construct the server for the release
         server = POSTServer(
-            File(appDir, "LiamRank-$release").path,
+            File(appDir, "WildRank-$release").path,
             getString(R.string.API_KEY)
         )
 

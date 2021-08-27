@@ -1,4 +1,4 @@
-package net.fruzyna.liamrank.android
+package org.wildstang.wildrank.android
 
 import org.junit.Test
 

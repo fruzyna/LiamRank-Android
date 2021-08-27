@@ -1,4 +1,4 @@
-package net.fruzyna.liamrank.android
+package org.wildstang.wildrank.android
 
 import android.app.Dialog
 import android.content.DialogInterface
@@ -27,7 +27,7 @@ class ReleaseDialog : DialogFragment() {
             if (files != null) {
                 for (file in files) {
                     val name = file.nameWithoutExtension
-                    if (name.startsWith("LiamRank-") &&
+                    if (name.startsWith("WildRank-") &&
                         !name.endsWith("-master") &&
                         !name.endsWith("-$lastUsed") &&
                         !name.endsWith("-")) {

@@ -1,4 +1,4 @@
-package net.fruzyna.liamrank.android
+package org.wildstang.wildrank.android
 
 import android.util.Base64
 import fi.iki.elonen.NanoHTTPD
@@ -14,13 +14,13 @@ class POSTServer(directory: String, apiKey: String) : NanoHTTPD(8080) {
             "<html lang=\"en\">" +
             "   <head>" +
             "       <meta charset=\"utf-8\"/>" +
-            "       <title>LiamRank Android</title>" +
+            "       <title>WildRank Android</title>" +
             "   </head>" +
             "   <body>" +
-            "       <h1>Liam Rank</h1>" +
+            "       <h1>WildRank</h1>" +
             "       POSTServer.kt Kotlin POST server<br>" +
-            "       2020 Liam Fruzyna<br>" +
-            "       <a href=\"https://github.com/mail929/LiamRank-Android\">MPL Licensed on GitHub</a>" +
+            "       2021 WildStang Robotics<br>" +
+            "       <a href=\"https://github.com/WildStang/WildRank-Android\">MPL Licensed on GitHub</a>" +
             "   </body>" +
             "</html>"
 

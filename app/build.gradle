@@ -7,7 +7,7 @@ android {
     buildToolsVersion "30.0.1"
 
     defaultConfig {
-        applicationId "net.fruzyna.liamrank.android"
+        applicationId "org.wildstang.wildrank.android"
         minSdkVersion 21
         targetSdkVersion 30
         versionCode 4
