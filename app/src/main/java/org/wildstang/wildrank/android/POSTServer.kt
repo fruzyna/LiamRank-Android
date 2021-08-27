@@ -20,7 +20,7 @@ class POSTServer(directory: String, apiKey: String) : NanoHTTPD(8080) {
             "       <h1>WildRank</h1>" +
             "       POSTServer.kt Kotlin POST server<br>" +
             "       2021 WildStang Robotics<br>" +
-            "       <a href=\"https://github.com/WildStang/WildRank-Android\">MPL Licensed on GitHub</a>" +
+            "       <a href=\"https://github.com/WildStang/WildRank-Android-Server\">MPL Licensed on GitHub</a>" +
             "   </body>" +
             "</html>"
 
