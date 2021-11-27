@@ -38,7 +38,7 @@ class POSTServer(directory: String, apiKey: String) : NanoHTTPD(8080) {
         println("Request: $request")
 
         // get upload directory
-        val uploadDir = File(directory, "uploads")
+        var uploadDir = File(directory, "uploads")
         uploadDir.mkdirs()
 
         // save posted files to /uploads
@@ -65,6 +65,12 @@ class POSTServer(directory: String, apiKey: String) : NanoHTTPD(8080) {
                     }
                     else if (!file.contains(".")) {
                         file += ".json"
+                    }
+
+                    // handle incoming configs by backing up
+                    if (file.endsWith("config.json")) {
+                        uploadDir = File(directory, "config")
+                        File(uploadDir, file).renameTo(File(uploadDir, "$file.bkp"))
                     }
 
                     // write JSON to file

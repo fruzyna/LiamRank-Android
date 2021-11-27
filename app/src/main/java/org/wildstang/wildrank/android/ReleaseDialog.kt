@@ -14,7 +14,10 @@ class ReleaseDialog : DialogFragment() {
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
         return activity?.let {
             val mainActivity = (activity as MainActivity)
-            val lastUsed = mainActivity.getLastRelease()
+            var lastUsed = mainActivity.getLastRelease()
+            if (lastUsed == "master") {
+                lastUsed = "master-cached"
+            }
 
             // create base list of releases
             val releases = ArrayList<String>()
@@ -48,7 +51,7 @@ class ReleaseDialog : DialogFragment() {
                         1 -> "latest"
                         2 -> "master"
                         releases.size - 1 -> "manual"
-                        else -> releases[which - 3].substring(8)
+                        else -> releases[which].substring(8)
                     }
 
                     if (release != "manual") {

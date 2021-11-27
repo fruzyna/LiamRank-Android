@@ -275,6 +275,9 @@ class MainActivity : AppCompatActivity() {
                 if (page.contains(relStr)) {
                     var latest = page.substring(page.indexOf(relStr) + relStr.length)
                     latest = latest.substring(0, latest.indexOf("\""))
+                    if (latest.contains("&")) {
+                        latest = latest.substring(0, latest.indexOf("&"))
+                    }
                     println("[FETCH] Found release $latest")
                     useRelease(latest)
                     return
@@ -299,11 +302,14 @@ class MainActivity : AppCompatActivity() {
         }
 
         // if the desired release does not exist
-        if (!isReleaseCached(release) || release == "master") {
+        if ((!isReleaseCached(release) && release != "master-cached") || release == "master") {
             // download it
             fetchRelease(release)
         }
         else {
+            if (release == "master-cached") {
+                release = "master"
+            }
             // otherwise, start app with release
             startRelease(release)
         }
