@@ -69,7 +69,7 @@ class POSTServer(directory: String, apiKey: String) : NanoHTTPD(8080) {
 
                     // handle incoming configs by backing up
                     if (file.endsWith("config.json")) {
-                        uploadDir = File(directory, "config")
+                        uploadDir = File(directory, "assets")
                         File(uploadDir, file).renameTo(File(uploadDir, "$file.bkp"))
                     }
 
